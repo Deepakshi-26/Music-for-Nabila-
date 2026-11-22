@@ -15,7 +15,7 @@ import numpy as np
 import pyworld as pw
 
 SR = 44100
-BPM = 96
+BPM = 72
 BEAT = 60.0 / BPM
 BAR = 4 * BEAT
 rng = np.random.default_rng(26)
@@ -312,7 +312,7 @@ def main():
     print("Mixing ...")
     vox = reverb(presence(inst["vox"] + inst["harm"]), 1.6, 0.16)
     mix = (0.7*reverb(inst["piano"], 1.8, 0.25) + 0.7*inst["pad"] + 0.9*inst["bass"]
-           + 0.55*inst["drums"] + 0.8*reverb(inst["bell"], 2.5, 0.4)
+           + 0.35*inst["drums"] + 0.8*reverb(inst["bell"], 2.5, 0.4)
            + 1.6*vox/ (np.max(np.abs(vox)) + 1e-9) * 0.6
            + 0.6*reverb(inst["speech"], 1.5, 0.15) / (np.max(np.abs(inst["speech"])) + 1e-9))
     # duck the music under the spoken message

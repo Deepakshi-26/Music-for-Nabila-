@@ -35,12 +35,14 @@ come true and start to bloom.
 ---
 
 ### Remaking the song
-`make_song.py` builds everything from scratch: a female voice (espeak-ng + MBROLA `us1`)
-is re-pitched note by note onto the melody with the WORLD vocoder, over piano, pad,
-bass, drums and music box made in numpy. Edit the lyrics or melody in the script and run:
+`make_song.py` builds everything from scratch. A natural female voice (Kokoro neural TTS,
+`af_heart`) speaks each word, and the WORLD vocoder holds the vowels and tunes them onto the
+melody note by note. The piano, pad, bass, drums and music box are made in numpy.
 
 ```bash
-sudo apt-get install espeak-ng mbrola-us1 ffmpeg
-pip install numpy pyworld
-python3 make_song.py
+pip install numpy pyworld kokoro-onnx soundfile      # plus ffmpeg
+mkdir voices && cd voices
+curl -LO https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/kokoro-v1.0.onnx
+curl -LO https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/voices-v1.0.bin
+cd .. && KOKORO_DIR=voices python3 make_song.py        # VOICE=af_bella etc. to change singer
 ```

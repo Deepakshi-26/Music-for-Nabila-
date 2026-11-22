@@ -3,12 +3,12 @@
 "Nabila, You Make the World Glow" - an original birthday song.
 
 Generates a full song (instrumental + sung vocals + spoken message) with:
-  - espeak-ng + MBROLA (us1 female voice) for the words
+  - Kokoro neural TTS (af_heart female voice) for the words
   - pyworld (WORLD vocoder) to re-pitch and stretch each syllable onto the melody
   - numpy for all instruments (piano, bass, pad, music box, drums) and mixing
 
 Usage:  python3 make_song.py      -> writes nabila_birthday_song.wav / .mp3
-Needs:  espeak-ng, mbrola-us1, ffmpeg, numpy, pyworld
+Needs:  ffmpeg, numpy, pyworld, kokoro-onnx (+ model files in $KOKORO_DIR)
 """
 import os, subprocess, tempfile, wave
 import numpy as np
@@ -27,23 +27,24 @@ def nm(s):  # "C4" -> midi
 
 # ----------------------------------------------------------------- song data
 # Each melody line is 8 beats: (sung syllable spelling, note, beats)
+# Each melody line is 8 beats: (word, [(note, beats) per syllable])
 VERSE1 = [
-    [("too","E4",.5),("day","G4",1),("the","G4",.5),("sky","A4",1),("is","G4",1),("shy","E4",1),("ning","D4",.5),("bright","E4",2.5)],
-    [("the","E4",.5),("stars","F4",1),("came","F4",.5),("out","A4",1),("to","G4",1),("say","G4",4)],
-    [("a","E4",.5),("girl","G4",1),("so","G4",.5),("kind","C5",1),("a","B4",.5),("heart","A4",1),("so","G4",.5),("light","A4",3)],
-    [("was","G4",.5),("born","F4",1),("up","E4",.5),("on","D4",1),("this","E4",1),("day","C4",4)],
+    [("today",[("E4",.5),("G4",1)]),("the",[("G4",.5)]),("sky",[("A4",1)]),("is",[("G4",1)]),("shining",[("E4",1),("D4",.5)]),("bright",[("E4",2.5)])],
+    [("the",[("E4",.5)]),("stars",[("F4",1)]),("came",[("F4",.5)]),("out",[("A4",1)]),("to",[("G4",1)]),("say",[("G4",4)])],
+    [("uh",[("E4",.5)]),("girl",[("G4",1)]),("so",[("G4",.5)]),("kind",[("C5",1)]),("uh",[("B4",.5)]),("heart",[("A4",1)]),("so",[("G4",.5)]),("light",[("A4",3)])],
+    [("was",[("G4",.5)]),("born",[("F4",1)]),("upon",[("E4",.5),("D4",1)]),("this",[("E4",1)]),("day",[("C4",4)])],
 ]
 VERSE2 = [
-    [("your","E4",.5),("laugh","G4",1),("is","G4",.5),("like","A4",1),("a","G4",1),("sum","E4",1),("mer","D4",.5),("song","E4",2.5)],
-    [("your","E4",.5),("smile","F4",1),("can","F4",.5),("light","A4",1),("the","G4",1),("room","G4",4)],
-    [("may","E4",.5),("ev","G4",1),("ree","G4",.5),("wish","C5",1),("you","B4",.5),("hold","A4",1),("for","G4",.5),("long","A4",3)],
-    [("come","G4",.5),("true","F4",1),("and","E4",.5),("start","D4",1),("to","E4",1),("bloom","C4",4)],
+    [("your",[("E4",.5)]),("laugh",[("G4",1)]),("is",[("G4",.5)]),("like",[("A4",1)]),("uh",[("G4",1)]),("summer",[("E4",1),("D4",.5)]),("song",[("E4",2.5)])],
+    [("your",[("E4",.5)]),("smile",[("F4",1)]),("can",[("F4",.5)]),("light",[("A4",1)]),("the",[("G4",1)]),("room",[("G4",4)])],
+    [("may",[("E4",.5)]),("every",[("G4",1),("G4",.5)]),("wish",[("C5",1)]),("you",[("B4",.5)]),("hold",[("A4",1)]),("for",[("G4",.5)]),("long",[("A4",3)])],
+    [("come",[("G4",.5)]),("true",[("F4",1)]),("and",[("E4",.5)]),("start",[("D4",1)]),("to",[("E4",1)]),("bloom",[("C4",4)])],
 ]
 CHORUS = [
-    [("hap","C5",.5),("pee","C5",.5),("birth","A4",1),("day","C5",1),("nah","D5",.5),("bee","C5",.5),("lah","G4",4)],
-    [("you","G4",.5),("make","A4",1),("the","G4",.5),("whole","F4",1),("world","E4",1),("glow","D4",4)],
-    [("hap","C5",.5),("pee","C5",.5),("birth","A4",1),("day","C5",1),("nah","E5",.5),("bee","D5",.5),("lah","C5",4)],
-    [("more","A4",.5),("love","G4",1),("than","E4",.5),("you","F4",1),("could","D4",1),("know","C4",4)],
+    [("happy",[("C5",.5),("C5",.5)]),("birthday",[("A4",1),("C5",1)]),("Nabeela",[("D5",.5),("C5",.5),("G4",4)])],
+    [("you",[("G4",.5)]),("make",[("A4",1)]),("the",[("G4",.5)]),("whole",[("F4",1)]),("world",[("E4",1)]),("glow",[("D4",4)])],
+    [("happy",[("C5",.5),("C5",.5)]),("birthday",[("A4",1),("C5",1)]),("Nabeela",[("E5",.5),("D5",.5),("C5",4)])],
+    [("more",[("A4",.5)]),("love",[("G4",1)]),("than",[("E4",.5)]),("you",[("F4",1)]),("could",[("D4",1)]),("know",[("C4",4)])],
 ]
 # chords per bar (2 bars per line); a bar may hold two chords (2 beats each)
 VERSE_CH  = ["C", "Am", "F", "G", "C", "Am", ("F", "G"), "C"]
@@ -126,73 +127,100 @@ def reverb(x, secs=2.0, wet=0.25):
     y = np.fft.irfft(np.fft.rfft(x, N) * np.fft.rfft(ir, N), N)[:len(x)]
     return x + wet * y * 0.6
 
+def presence(x):
+    """Gentle EQ for vocal clarity: cut low rumble, lift 2-5 kHz."""
+    N = 1 << int(np.ceil(np.log2(len(x)))); X = np.fft.rfft(x, N); f = np.fft.rfftfreq(N, 1/SR)
+    g = np.where(f < 120, (f/120)**2, 1.0) * (1 + 0.6*np.exp(-((f-3200)/1500)**2)) * np.where(f > 9000, 0.7, 1)
+    return np.fft.irfft(X * g, N)[:len(x)]
+
 def read_wav(path):
     with wave.open(path) as w:
         d = np.frombuffer(w.readframes(w.getnframes()), dtype=np.int16).astype(np.float64)
     return d / 32768.0
 
-TMP = tempfile.mkdtemp()
-def tts(text, speed=150, pitch=50):
-    raw = os.path.join(TMP, "raw.wav"); out = os.path.join(TMP, "out.wav")
-    subprocess.run(["espeak-ng", "-v", "mb-us1", "-s", str(speed), "-p", str(pitch), "-w", raw, text],
-                   check=True, capture_output=True)
-    subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", raw, "-ar", str(SR), "-ac", "1", out], check=True)
-    x = read_wav(out)
-    nz = np.nonzero(np.abs(x) > 0.01)[0]
-    return x[max(0, nz[0]-200): nz[-1]+200] if len(nz) else x
+from kokoro_onnx import Kokoro
+KDIR = os.environ.get("KOKORO_DIR", ".")
+_kok = None
+VOICE = os.environ.get("VOICE", "af_heart")
+
+def resample(x, sr_in, sr_out=SR):
+    n_out = int(round(len(x) * sr_out / sr_in))
+    X = np.fft.rfft(x); Y = np.zeros(n_out // 2 + 1, complex)
+    k = min(len(X), len(Y)); Y[:k] = X[:k]
+    return np.fft.irfft(Y, n_out) * (n_out / len(x))
+
+def tts(text, speed=1.0):
+    global _kok
+    if _kok is None:
+        _kok = Kokoro(os.path.join(KDIR, "kokoro-v1.0.onnx"), os.path.join(KDIR, "voices-v1.0.bin"))
+    s, sr = _kok.create(text, voice=VOICE, speed=speed, lang="en-us")
+    x = resample(np.asarray(s, float), sr)
+    nz = np.nonzero(np.abs(x) > 0.01 * np.max(np.abs(x)))[0]
+    return x[max(0, nz[0]-300): nz[-1]+300] if len(nz) else x
 
 # ----------------------------------------------------------------- singing
 FP = 5.0  # WORLD frame period (ms)
 _cache = {}
-def analyse(word):
-    if word not in _cache:
-        x = tts(word, speed=130)
-        f0, t = pw.harvest(x, SR, frame_period=FP, f0_floor=70, f0_ceil=500)
-        sp = pw.cheaptrick(x, f0, t, SR)
-        ap = pw.d4c(x, f0, t, SR)
-        _cache[word] = (f0, sp, ap)
-    return _cache[word]
+def analyse(word, nsyl):
+    """WORLD-analyse a spoken word and cut it into nsyl syllables at energy dips."""
+    key = (word, nsyl)
+    if key not in _cache:
+        x = tts(word, speed=0.85)
+        f0, t = pw.harvest(x, SR, frame_period=FP, f0_floor=90, f0_ceil=600)
+        sp = pw.cheaptrick(x, f0, t, SR); ap = pw.d4c(x, f0, t, SR)
+        en = np.log(np.sum(sp, axis=1) + 1e-12)
+        en = np.convolve(en, np.ones(5)/5, mode="same")
+        voiced = np.nonzero(f0 > 0)[0]
+        v0, v1 = (voiced[0], voiced[-1] + 1) if len(voiced) else (0, len(f0))
+        bounds = [0]
+        for i in range(1, nsyl):                     # lowest-energy frame near each expected cut
+            c = v0 + (v1 - v0) * i // nsyl; w = max(3, (v1 - v0) // (2*nsyl))
+            lo, hi = max(bounds[-1] + 2, c - w), min(len(f0) - 2, c + w)
+            bounds.append(lo + int(np.argmin(en[lo:hi])) if hi > lo else c)
+        bounds.append(len(f0))
+        segs = [(f0[a:b], sp[a:b], ap[a:b], en[a:b]) for a, b in zip(bounds[:-1], bounds[1:])]
+        _cache[key] = segs
+    return _cache[key]
 
-def sing(word, m, dur, prev_m=None, vib=True):
-    """Return (audio, lead_in_seconds) of `word` sung at midi note m for dur seconds."""
-    f0, sp, ap = analyse(word)
-    voiced = np.nonzero(f0 > 0)[0]
-    if len(voiced) == 0:
-        voiced = np.arange(len(f0)//3, 2*len(f0)//3)
-    v0, v1 = voiced[0], voiced[-1] + 1
-    onset = np.arange(0, v0); coda = np.arange(v1, len(f0))
-    onset_s = len(onset) * FP / 1000
-    total = int(dur * 1000 / FP * 0.94)             # slight gap before the next note
-    nv = max(4, total - len(coda))
-    mid = np.linspace(v0, v1 - 1, nv).round().astype(int)
-    idx = np.concatenate([onset, mid, coda])
-    sp2, ap2 = sp[idx].copy(), ap[idx].copy()
-    target = np.full(len(idx), midi_hz(m))
-    tt = np.arange(nv) * FP / 1000
-    cents = np.zeros(nv)
-    if prev_m is not None:                             # small glide from the previous note
-        g = min(nv, 9)
-        cents[:g] = (prev_m - m) * 100 * (1 - np.linspace(0, 1, g)) ** 2
-    if vib and dur > 0.45:                             # gentle delayed vibrato
-        ramp = np.clip((tt - 0.25) / 0.3, 0, 1)
-        cents += 28 * ramp * np.sin(2*np.pi*5.4*tt)
-    f2 = np.zeros(len(idx))
-    f2[len(onset):len(onset)+nv] = target[:nv] * 2 ** (cents / 1200)
-    orig_v = f0[idx] > 0
-    f2[len(onset):len(onset)+nv][~orig_v[len(onset):len(onset)+nv]] = 0
+def sing_syl(seg, m, dur, prev_m, vib=True):
+    f0, sp, ap, en = seg
+    n = len(f0)
+    # vowel nucleus = loud voiced frames; only that part is held, consonants keep natural speed
+    loud = np.nonzero((f0 > 0) & (en > en.max() - 1.6))[0]
+    if len(loud) < 2: loud = np.nonzero(f0 > 0)[0]
+    if len(loud) < 2: loud = np.arange(n // 3, max(n // 3 + 2, 2 * n // 3))
+    c0, c1 = loud[0], loud[-1] + 1
+    onset, coda = np.arange(0, c0), np.arange(c1, n)
+    total = int(dur * 1000 / FP * 0.95)
+    nv = max(6, total - len(coda))
+    core = np.linspace(c0, c1 - 1, nv)
+    idx_f = np.concatenate([onset, core, coda]); idx = idx_f.round().astype(int)
+    # interpolate spectral frames for a smooth held vowel
+    lo = np.floor(idx_f).astype(int); hi = np.minimum(lo + 1, n - 1); fr = (idx_f - lo)[:, None]
+    sp2 = sp[lo] * (1 - fr) + sp[hi] * fr; ap2 = ap[lo] * (1 - fr) + ap[hi] * fr
+    tt = np.arange(nv) * FP / 1000; cents = np.zeros(nv)
+    if prev_m is not None:
+        g = min(nv, 10); cents[:g] = (prev_m - m) * 100 * (1 - np.linspace(0, 1, g)) ** 2
+    if vib and dur > 0.5:
+        cents += 30 * np.clip((tt - 0.3) / 0.35, 0, 1) * np.sin(2*np.pi*5.3*tt)
+    f2 = np.where(f0[idx] > 0, midi_hz(m), 0.0)
+    f2[len(onset):len(onset)+nv] = midi_hz(m) * 2 ** (cents / 1200)   # hold the vowel fully voiced
+    f2[:len(onset)] = np.where(f0[onset] > 0, midi_hz(m), 0)
     y = pw.synthesize(np.ascontiguousarray(f2), np.ascontiguousarray(sp2), np.ascontiguousarray(ap2), SR, FP)
-    fade = int(0.02*SR)
+    fade = int(0.025*SR)
     if len(y) > 2*fade: y[-fade:] *= np.linspace(1, 0, fade)
-    return y, min(onset_s, 0.09)
+    return y, min(len(onset) * FP / 1000, 0.12)
 
 def sing_lines(buf, lines, start, gain=1.0, transpose=0):
     t = start; prev = None
     for line in lines:
-        for word, note, beats in line:
-            m = nm(note) + transpose
-            y, lead = sing(word, m, beats * BEAT, prev)
-            add(buf, y * gain, max(0, t - lead))
-            prev = m; t += beats * BEAT
+        for word, notes in line:
+            segs = analyse(word, len(notes))
+            for seg, (note, beats) in zip(segs, notes):
+                m = nm(note) + transpose
+                y, lead = sing_syl(seg, m, beats * BEAT, prev)
+                add(buf, y * gain, max(0, t - lead))
+                prev = m; t += beats * BEAT
     return t
 
 # ----------------------------------------------------------------- arrangement
@@ -236,13 +264,14 @@ def comp(inst, chords, start, style):
 def music_box(buf, lines, start, transpose=12):
     t = start
     for line in lines:
-        for _, note, beats in line:
+        for _, notes in line:
+          for note, beats in notes:
             add(buf, bell(nm(note) + transpose, beats*BEAT), t); t += beats*BEAT
     return t
 
 def main():
     print("Synthesising spoken message ...")
-    speech = tts(SPOKEN, speed=138, pitch=55)
+    speech = tts(SPOKEN, speed=0.95)
     speech_len = len(speech) / SR
     outro_bars = int(np.ceil((speech_len + 2.5) / BAR))
 
@@ -276,15 +305,15 @@ def main():
     sing_lines(inst["vox"], CHORUS, c3)
     # harmony on the last chorus (a third-ish below, diatonic)
     HARM = {"C5":"A4","D5":"B4","E5":"C5","A4":"F4","G4":"E4","F4":"D4","E4":"C4","D4":"B3","C4":"E3","B4":"G4"}
-    harm = [[(w, HARM.get(n, n), b) for w, n, b in line] for line in CHORUS]
-    sing_lines(inst["harm"], harm, c3, gain=0.55)
+    harm = [[(w, [(HARM.get(n, n), b) for n, b in ns]) for w, ns in line] for line in CHORUS]
+    sing_lines(inst["harm"], harm, c3, gain=0.4)
     add(inst["speech"], speech, outro + 1.0)
 
     print("Mixing ...")
-    vox = reverb(inst["vox"] + inst["harm"], 2.2, 0.32)
-    mix = (0.9*reverb(inst["piano"], 1.8, 0.25) + 0.7*inst["pad"] + 0.9*inst["bass"]
+    vox = reverb(presence(inst["vox"] + inst["harm"]), 1.6, 0.16)
+    mix = (0.7*reverb(inst["piano"], 1.8, 0.25) + 0.7*inst["pad"] + 0.9*inst["bass"]
            + 0.55*inst["drums"] + 0.8*reverb(inst["bell"], 2.5, 0.4)
-           + 1.25*vox/ (np.max(np.abs(vox)) + 1e-9) * 0.55
+           + 1.6*vox/ (np.max(np.abs(vox)) + 1e-9) * 0.6
            + 0.6*reverb(inst["speech"], 1.5, 0.15) / (np.max(np.abs(inst["speech"])) + 1e-9))
     # duck the music under the spoken message
     duck = np.ones_like(mix); s0 = int((outro + 0.5)*SR); s1 = int((outro + 1.5 + speech_len)*SR)

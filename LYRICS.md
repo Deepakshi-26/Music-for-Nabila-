@@ -1,5 +1,5 @@
 # 🎂 Nabila, You Make the World Glow
-*An original birthday song for Nabila* · C major · 72 BPM (slow ballad) · ~3 min
+*An original birthday song for Nabila* · G major · 72 BPM (slow ballad) · ~3 min
 
 🎧 **Listen:** [`nabila_birthday_song.mp3`](nabila_birthday_song.mp3)
 

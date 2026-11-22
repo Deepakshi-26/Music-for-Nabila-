@@ -22,8 +22,9 @@ rng = np.random.default_rng(26)
 
 def midi_hz(m): return 440.0 * 2 ** ((m - 69) / 12)
 NOTE = {n: i for i, n in enumerate(["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"])}
-def nm(s):  # "C4" -> midi
-    return 12 * (int(s[-1]) + 1) + NOTE[s[:-1]]
+KEY_SHIFT = int(os.environ.get("KEY_SHIFT", "-5"))   # -5: C major -> G major, a natural range for the voice
+def nm(s):  # "C4" -> midi (shifted into the song's key)
+    return 12 * (int(s[-1]) + 1) + NOTE[s[:-1]] + KEY_SHIFT
 
 # ----------------------------------------------------------------- song data
 # Each melody line is 8 beats: (sung syllable spelling, note, beats)
@@ -41,9 +42,9 @@ VERSE2 = [
     [("come",[("G4",.5)]),("true",[("F4",1)]),("and",[("E4",.5)]),("start",[("D4",1)]),("to",[("E4",1)]),("bloom",[("C4",4)])],
 ]
 CHORUS = [
-    [("happy",[("C5",.5),("C5",.5)]),("birthday",[("A4",1),("C5",1)]),("Nabeela",[("D5",.5),("C5",.5),("G4",4)])],
+    [("happy",[("C5",.5),("C5",.5)]),("birth",[("A4",1)]),("day",[("C5",1)]),("/nɑːbˈiːlə/",[("D5",.5),("C5",.5),("G4",4)])],
     [("you",[("G4",.5)]),("make",[("A4",1)]),("the",[("G4",.5)]),("whole",[("F4",1)]),("world",[("E4",1)]),("glow",[("D4",4)])],
-    [("happy",[("C5",.5),("C5",.5)]),("birthday",[("A4",1),("C5",1)]),("Nabeela",[("E5",.5),("D5",.5),("C5",4)])],
+    [("happy",[("C5",.5),("C5",.5)]),("birth",[("A4",1)]),("day",[("C5",1)]),("/nɑːbˈiːlə/",[("E5",.5),("D5",.5),("C5",4)])],
     [("more",[("A4",.5)]),("love",[("G4",1)]),("than",[("E4",.5)]),("you",[("F4",1)]),("could",[("D4",1)]),("know",[("C4",4)])],
 ]
 # chords per bar (2 bars per line); a bar may hold two chords (2 beats each)
@@ -153,7 +154,10 @@ def tts(text, speed=1.0):
     global _kok
     if _kok is None:
         _kok = Kokoro(os.path.join(KDIR, "kokoro-v1.0.onnx"), os.path.join(KDIR, "voices-v1.0.bin"))
-    s, sr = _kok.create(text, voice=VOICE, speed=speed, lang="en-us")
+    if text.startswith("/"):        # "/phonemes/" -> exact pronunciation (used for the name Nabila)
+        s, sr = _kok.create(text.strip("/"), voice=VOICE, speed=speed, lang="en-us", is_phonemes=True)
+    else:
+        s, sr = _kok.create(text, voice=VOICE, speed=speed, lang="en-us")
     x = resample(np.asarray(s, float), sr)
     nz = np.nonzero(np.abs(x) > 0.01 * np.max(np.abs(x)))[0]
     return x[max(0, nz[0]-300): nz[-1]+300] if len(nz) else x
@@ -170,7 +174,11 @@ def analyse(word, nsyl):
         sp = pw.cheaptrick(x, f0, t, SR); ap = pw.d4c(x, f0, t, SR)
         en = np.log(np.sum(sp, axis=1) + 1e-12)
         en = np.convolve(en, np.ones(5)/5, mode="same")
-        voiced = np.nonzero(f0 > 0)[0]
+        # harvest marks nearly everything voiced; un-voice breathy/silent frames (p, t, k, s, sh, th, h)
+        # so consonants stay crisp instead of being hummed at the note's pitch
+        nb = ap.shape[1]; low_ap = ap[:, 1:max(2, nb * 1000 // (SR // 2))].mean(axis=1)
+        f0 = f0.copy(); f0[(low_ap > 0.35) | (en < en.max() - 5.0)] = 0
+        voiced = np.nonzero((f0 > 0) & (en > en.max() - 3.0))[0]   # loud voiced span (ignores the fading tail)
         v0, v1 = (voiced[0], voiced[-1] + 1) if len(voiced) else (0, len(f0))
         bounds = [0]
         for i in range(1, nsyl):                     # lowest-energy frame near each expected cut
@@ -311,17 +319,22 @@ def main():
 
     print("Mixing ...")
     vox = reverb(presence(inst["vox"] + inst["harm"]), 1.6, 0.16)
-    mix = (0.7*reverb(inst["piano"], 1.8, 0.25) + 0.7*inst["pad"] + 0.9*inst["bass"]
-           + 0.35*inst["drums"] + 0.8*reverb(inst["bell"], 2.5, 0.4)
-           + 1.6*vox/ (np.max(np.abs(vox)) + 1e-9) * 0.6
-           + 0.6*reverb(inst["speech"], 1.5, 0.15) / (np.max(np.abs(inst["speech"])) + 1e-9))
-    # duck the music under the spoken message
-    duck = np.ones_like(mix); s0 = int((outro + 0.5)*SR); s1 = int((outro + 1.5 + speech_len)*SR)
-    music = mix - 0.6*reverb(inst["speech"], 1.5, 0.15) / (np.max(np.abs(inst["speech"])) + 1e-9)
-    duck[s0:s1] = 0.55
-    mix = music*duck + (mix - music)
+    vox = 1.6 * vox / (np.max(np.abs(vox)) + 1e-9) * 0.6
+    spk = 0.6 * reverb(inst["speech"], 1.5, 0.15) / (np.max(np.abs(inst["speech"])) + 1e-9)
+    music = (0.7*reverb(inst["piano"], 1.8, 0.25) + 0.7*inst["pad"] + 0.9*inst["bass"]
+             + 0.35*inst["drums"] + 0.8*reverb(inst["bell"], 2.5, 0.4))
+    # sidechain: the music dips whenever the voice is present, so every word sits on top
+    k = int(0.06 * SR)
+    lvl = np.sqrt(np.convolve((inst["vox"] + inst["speech"])**2, np.ones(k)/k, mode="same"))
+    lvl = np.convolve(lvl, np.ones(k)/k, mode="same")
+    lvl /= np.percentile(lvl[lvl > 1e-4], 90) + 1e-9
+    duck = 1 - 0.45 * np.clip(lvl, 0, 1)
+    mix = music * duck + vox + spk
     end = int((outro + outro_bars*BAR + 2.5) * SR)
     mix = mix[:end]
+    global SECTION_TIMES, VOX_STEM
+    SECTION_TIMES = dict(v1=v1, c1=c1, v2=v2, c2=c2, c3=c3, outro=outro)
+    VOX_STEM = inst["vox"][:end]
     mix[-int(2.5*SR):] *= np.linspace(1, 0, int(2.5*SR))
     mix /= np.max(np.abs(mix)) + 1e-9
     mix = np.tanh(mix * 1.3) / np.tanh(1.3) * 0.95
